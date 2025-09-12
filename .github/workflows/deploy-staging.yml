@@ -1,0 +1,40 @@
+name: Deploy Staging (staging branch)
+
+on:
+  push:
+    branches: [ staging ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (staging base)
+        run: npm run build:staging
+
+      # Deploy to a separate repo to get a stable staging URL like:
+      #   https://<your-username>.github.io/CabinetsSite-staging/
+      # 1) Create a repo named CabinetsSite-staging
+      # 2) Add a classic PAT with repo scope as a secret named GH_PAGES_TOKEN in this repo
+      # 3) Update the 'external_repository' owner if needed
+      - name: Deploy to CabinetsSite-staging repo
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GH_PAGES_TOKEN }}
+          publish_dir: ./dist
+          external_repository: gurhanalan/CabinetsSite-staging
+          publish_branch: gh-pages
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
