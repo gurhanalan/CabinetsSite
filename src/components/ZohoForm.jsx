@@ -11,6 +11,10 @@ export default function ZohoForm() {
     const splashInfo = ref.current?.querySelector('#wf_splash_info')
     const privacy = ref.current?.querySelector('#privacyTool6985731000000589853')
     const privacyErr = ref.current?.querySelector('#privacyErr6985731000000589853')
+    const emailInput = ref.current?.querySelector('#Email')
+    const emailErr = ref.current?.querySelector('#EmailErr')
+    const mobileInput = ref.current?.querySelector('#Mobile')
+    const mobileErr = ref.current?.querySelector('#MobileErr')
 
     function validateEmail(val) {
       const v = String(val || '').trim()
@@ -18,6 +22,25 @@ export default function ZohoForm() {
       const at = v.indexOf('@')
       const dot = v.lastIndexOf('.')
       return !(at < 1 || dot < at + 2 || dot + 2 >= v.length)
+    }
+
+    function validatePhone(val) {
+      const digits = String(val || '').replace(/\D/g, '')
+      // Basic validation: 10–15 digits
+      return digits.length >= 10 && digits.length <= 15
+    }
+
+    function setFieldError(inputEl, errEl, msg) {
+      if (!inputEl || !errEl) return
+      if (msg) {
+        errEl.textContent = msg
+        errEl.style.visibility = 'visible'
+        inputEl.setAttribute('aria-invalid', 'true')
+      } else {
+        errEl.textContent = ''
+        errEl.style.visibility = 'hidden'
+        inputEl.setAttribute('aria-invalid', 'false')
+      }
     }
 
     function showSplash(text) {
@@ -35,6 +58,10 @@ export default function ZohoForm() {
     }
 
     privacy?.addEventListener('change', hidePrivacyErr)
+    const onEmailInput = () => setFieldError(emailInput, emailErr, '')
+    const onMobileInput = () => setFieldError(mobileInput, mobileErr, '')
+    emailInput?.addEventListener('input', onEmailInput)
+    mobileInput?.addEventListener('input', onMobileInput)
 
     async function onSubmit(e) {
       e.preventDefault()
@@ -57,11 +84,22 @@ export default function ZohoForm() {
         }
       }
 
-      const emailEl = form.querySelector('[ftype=email]')
+      const emailEl = emailInput || form.querySelector('[ftype=email]')
       if (emailEl && !validateEmail(emailEl.value)) {
-        alert('Please enter a valid email address.')
+        setFieldError(emailEl, emailErr, 'Please enter a valid email address.')
         emailEl.focus()
         return
+      } else {
+        setFieldError(emailEl, emailErr, '')
+      }
+
+      const mobileEl = mobileInput || form.querySelector('#Mobile')
+      if (mobileEl && !validatePhone(mobileEl.value)) {
+        setFieldError(mobileEl, mobileErr, 'Please enter a valid phone number.')
+        mobileEl.focus()
+        return
+      } else {
+        setFieldError(mobileEl, mobileErr, '')
       }
 
       if (privacy && !privacy.checked) {
@@ -75,18 +113,28 @@ export default function ZohoForm() {
       submitBtn?.setAttribute('disabled', 'true')
 
       try {
-        const fd = new FormData(form)
-        const res = await fetch('https://crm.zoho.com/crm/WebToLeadForm', {
-          method: 'POST',
-          body: fd,
-          mode: 'no-cors',
-        })
-        // no-cors responses are opaque; show optimistic success
-        showSplash('Thanks! Your request has been sent.')
-        form.reset()
+        // Submit the actual HTML form to Zoho via hidden iframe to avoid CORS
+        const iframe = ref.current?.querySelector('iframe[name="zohotarget"]')
+        let handled = false
+
+        function onDone() {
+          if (handled) return
+          handled = true
+          showSplash('Thanks! Your request has been sent.')
+          form.reset()
+          // Clear validation error states after reset
+          setFieldError(emailInput, emailErr, '')
+          setFieldError(mobileInput, mobileErr, '')
+          submitBtn?.removeAttribute('disabled')
+          iframe?.removeEventListener('load', onDone)
+        }
+
+        iframe?.addEventListener('load', onDone)
+        form.submit()
+        // Safety: in case load doesn't fire due to cross-origin, fallback after 2s
+        setTimeout(onDone, 2000)
       } catch (err) {
         alert('An error occurred while submitting the form.')
-      } finally {
         submitBtn?.removeAttribute('disabled')
       }
     }
@@ -105,6 +153,8 @@ export default function ZohoForm() {
     return () => {
       form?.removeEventListener('submit', onSubmit)
       privacy?.removeEventListener('change', hidePrivacyErr)
+      emailInput?.removeEventListener('input', onEmailInput)
+      mobileInput?.removeEventListener('input', onMobileInput)
     }
   }, [])
 
@@ -117,13 +167,22 @@ export default function ZohoForm() {
           </div>
           <span id='wf_splash_info' />
         </div>
-        <form id='webform6985731000000589853' name='WebToLeads6985731000000589853' acceptCharset='UTF-8'>
+        <form
+          id='webform6985731000000589853'
+          name='WebToLeads6985731000000589853'
+          acceptCharset='UTF-8'
+          method='POST'
+          action='https://crm.zoho.com/crm/WebToLeadForm'
+          target='zohotarget'
+        >
           {/* Required hidden fields (Do not remove) */}
           <input type='text' style={{ display: 'none' }} name='xnQsjsdp' defaultValue='bf89fc5afc11b4095eca20b965e5a064fe862319a81f3126e911f2f9ead98ed1' />
           <input type='hidden' name='zc_gad' id='zc_gad' defaultValue='' />
           <input type='text' style={{ display: 'none' }} name='xmIwtLD' defaultValue='0b7a76fef7aac8be4fbcaae1d3a99677d503347fa58cd99c5762cb685eae1e6d40646aaabbb7e03837a2f4bd7f100e64' />
           <input type='text' style={{ display: 'none' }} name='actionType' defaultValue='TGVhZHM=' />
-          <input type='text' style={{ display: 'none' }} name='returnURL' defaultValue='null' />
+          {/* Redirect back to the same page after Zoho processes the lead. Since the form
+              posts to a hidden iframe, this is mostly advisory. */}
+          <input type='text' style={{ display: 'none' }} name='returnURL' defaultValue={window?.location?.href || ''} />
 
           <div className='zcwf_title'>Dealer Membership</div>
 
@@ -203,7 +262,7 @@ export default function ZohoForm() {
             </div>
             <div className='zcwf_col_fld'>
               <input type='text' id='Email' name='Email' maxLength='100' aria-label='Email' aria-required='true' autoComplete='off' ftype='email' />
-              <div className='zcwf_col_help' />
+              <div id='EmailErr' className='zcwf_col_help' style={{ color: 'red', visibility: 'hidden', fontSize: 12 }} />
             </div>
           </div>
 
@@ -213,7 +272,7 @@ export default function ZohoForm() {
             </div>
             <div className='zcwf_col_fld'>
               <input type='text' id='Mobile' name='Mobile' maxLength='30' aria-label='Mobile' aria-required='true' />
-              <div className='zcwf_col_help' />
+              <div id='MobileErr' className='zcwf_col_help' style={{ color: 'red', visibility: 'hidden', fontSize: 12 }} />
             </div>
           </div>
 
@@ -329,7 +388,7 @@ export default function ZohoForm() {
             <div className='zcwf_privacy'>
               <div className='dIB vaT' aria-live='polite'>
                 <label className='newCustomchkbox-md dIB w100_per'>
-                  <input id='privacyTool6985731000000589853' type='checkbox' aria-checked='false' aria-errormessage='privacyErr6985731000000589853' aria-label='privacyTool' />
+              <input id='privacyTool6985731000000589853' name='privacyTool' type='checkbox' aria-checked='false' aria-errormessage='privacyErr6985731000000589853' aria-label='privacyTool' />
                 </label>
               </div>
               <div className='dIB zcwf_privacy_txt'>
@@ -338,9 +397,10 @@ export default function ZohoForm() {
               <div id='privacyErr6985731000000589853' style={{ fontSize: 12, color: 'red', paddingLeft: 5, visibility: 'hidden' }}>Please accept this</div>
             </div>
           </div>
+        {/* Hidden iframe target used to submit cross-origin without navigating */}
+        <iframe name='zohotarget' title='Zoho Submission Target' style={{ display: 'none' }} />
         </form>
       </div>
     </div>
   )
 }
-
