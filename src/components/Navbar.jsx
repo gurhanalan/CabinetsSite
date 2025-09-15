@@ -14,6 +14,7 @@ export default function Navbar() {
           <a href="#bath">Bath</a>
           <a href="#about">About</a>
           <a href="#process">Process</a>
+          <a href="https://CabinetsSite.zoholandingpage.com/deneme" target="_blank" rel="noopener noreferrer">Membership</a>
           <a href="#contact" className="btn btn--primary">Get a Quote</a>
         </nav>
       </div>
